@@ -117,7 +117,7 @@ add_library(dave-jvm SHARED
   ${DJ_ROOT}/bind_session.cpp
 )
 
-target_link_libraries(dave-jvm PRIVATE libdave JNI::JNI MLSPP::mlspp crypto)
+target_link_libraries(dave-jvm PRIVATE libdave JNI::JNI MLSPP::mlspp OpenSSL::Crypto)
 target_compile_features(dave-jvm PRIVATE cxx_std_17)
 target_include_directories(dave-jvm PRIVATE
   ${PROJECT_SOURCE_DIR}/libdave/cpp/includes

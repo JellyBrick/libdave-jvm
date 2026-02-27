@@ -158,15 +158,17 @@ endif()
 ###
 ### Exports
 ###
-set(CMAKE_EXPORT_PACKAGE_REGISTRY ON)
-export(
-  EXPORT
-    mlspp-targets
-  NAMESPACE
-    ${MLS_EXPORT_NAMESPACE}::
-  FILE
-    ${MLS_EXPORT_NAMESPACE}Targets.cmake)
-export(PACKAGE ${MLS_EXPORT_NAMESPACE})
+if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+  set(CMAKE_EXPORT_PACKAGE_REGISTRY ON)
+  export(
+    EXPORT
+      mlspp-targets
+    NAMESPACE
+      ${MLS_EXPORT_NAMESPACE}::
+    FILE
+      ${MLS_EXPORT_NAMESPACE}Targets.cmake)
+  export(PACKAGE ${MLS_EXPORT_NAMESPACE})
+endif()
 
 configure_package_config_file(cmake/config.cmake.in
   ${CMAKE_CURRENT_BINARY_DIR}/${MLS_EXPORT_NAMESPACE}Config.cmake

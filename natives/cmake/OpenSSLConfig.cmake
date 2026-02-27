@@ -1,17 +1,24 @@
 
-# include(${CMAKE_CURRENT_LIST_DIR}/OpenSSLTargets.cmake)
 set(OPENSSL_ROOT_DIR "${CMAKE_SOURCE_DIR}/boringssl")
 
 set(BORINGSSL_OUTPUT_DIR "${CMAKE_BINARY_DIR}/boringssl")
 set(OPENSSL_INCLUDE_DIR "${OPENSSL_ROOT_DIR}/include")
 
-# if(MSVC)
-#     set(OPENSSL_SSL_LIBRARY "${BORINGSSL_OUTPUT_DIR}/ssl.lib")
-#     set(OPENSSL_CRYPTO_LIBRARY "${BORINGSSL_OUTPUT_DIR}/crypto.lib")
-# else()
-#     set(OPENSSL_SSL_LIBRARY "${BORINGSSL_OUTPUT_DIR}/libssl.a")
-#     set(OPENSSL_CRYPTO_LIBRARY "${BORINGSSL_OUTPUT_DIR}/libcrypto.a")
-# endif()
+if(NOT TARGET crypto)
+  message(FATAL_ERROR "Expected vendored BoringSSL target 'crypto' to exist before find_package(OpenSSL).")
+endif()
+
+if(NOT TARGET ssl)
+  message(FATAL_ERROR "Expected vendored BoringSSL target 'ssl' to exist before find_package(OpenSSL).")
+endif()
+
+if(NOT TARGET OpenSSL::Crypto)
+  add_library(OpenSSL::Crypto ALIAS crypto)
+endif()
+
+if(NOT TARGET OpenSSL::SSL)
+  add_library(OpenSSL::SSL ALIAS ssl)
+endif()
 
 set(OPENSSL_CRYPTO_LIBRARY OpenSSL::Crypto)
 set(OPENSSL_SSL_LIBRARY OpenSSL::SSL)
@@ -33,22 +40,3 @@ message(STATUS "OPENSSL_ROOT_DIR: ${OPENSSL_ROOT_DIR}")
 message(STATUS "OPENSSL_INCLUDE_DIR: ${OPENSSL_INCLUDE_DIR}")
 message(STATUS "OPENSSL_CRYPTO_LIBRARY: ${OPENSSL_CRYPTO_LIBRARY}")
 message(STATUS "OPENSSL_SSL_LIBRARY: ${OPENSSL_SSL_LIBRARY}")
-
-# TODO: Stupidly hacky, doesn't actually link OpenSSL
-if(NOT TARGET OpenSSL::SSL)
-  add_library(OpenSSL::SSL INTERFACE IMPORTED GLOBAL)
-  set_target_properties(OpenSSL::SSL PROPERTIES
-    # IMPORTED_LOCATION "$<TARGET_FILE:ssl>"
-    INTERFACE_INCLUDE_DIRECTORIES "${OPENSSL_INCLUDE_DIR}"
-  )
-  # add_library(OpenSSL::SSL ALIAS ssl)
-endif()
-
-if(NOT TARGET OpenSSL::Crypto)
-  add_library(OpenSSL::Crypto INTERFACE IMPORTED GLOBAL)
-  set_target_properties(OpenSSL::Crypto PROPERTIES
-    # IMPORTED_LOCATION "$<TARGET_FILE:crypto>"
-    INTERFACE_INCLUDE_DIRECTORIES "${OPENSSL_INCLUDE_DIR}"
-  )
-  # add_library(OpenSSL::Crypto ALIAS crypto)
-endif()
