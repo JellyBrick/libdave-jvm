@@ -2,5 +2,5 @@
 -d ./build/javac-classes
 --source 8
 --source-path ../api/src/main/java
--cp /home/alula/.m2/repository/org/jetbrains/annotations/26.0.2/annotations-26.0.2.jar
+-cp /home/alula/.gradle/caches/modules-2/files-2.1/dev.arbjerg/lava-common/2.2.6/349046451f66c071caaf44ae5fc8edeb95ee513d/lava-common-2.2.6.jar:/home/alula/.m2/repository/org/jetbrains/annotations/26.0.2/annotations-26.0.2.jar
 ../impl-jni/src/main/java/moe/kyokobot/libdave/natives/DaveNativeBindings.java

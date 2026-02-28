@@ -25,7 +25,6 @@ jint mapEncryptorResult(IEncryptor::ResultCode result, size_t bytesWritten) {
 JNIEXPORT jlong JNICALL
 Java_moe_kyokobot_libdave_natives_DaveNativeBindings_daveEncryptorCreate(
     JNIEnv *env, jobject clazz) {
-  shutUpDave();
   auto encryptor = CreateEncryptor();
   return reinterpret_cast<jlong>(encryptor.release());
 }

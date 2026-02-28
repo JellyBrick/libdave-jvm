@@ -9,6 +9,14 @@ extern "C" {
 #endif
 /*
  * Class:     moe_kyokobot_libdave_natives_DaveNativeBindings
+ * Method:    daveSetLogSink
+ * Signature: (Lmoe/kyokobot/libdave/callbacks/DaveLogSink;)V
+ */
+JNIEXPORT void JNICALL Java_moe_kyokobot_libdave_natives_DaveNativeBindings_daveSetLogSink
+  (JNIEnv *, jobject, jobject);
+
+/*
+ * Class:     moe_kyokobot_libdave_natives_DaveNativeBindings
  * Method:    daveMaxSupportedProtocolVersion
  * Signature: ()I
  */
