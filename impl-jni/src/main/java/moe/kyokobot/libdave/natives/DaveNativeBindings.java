@@ -2,6 +2,7 @@ package moe.kyokobot.libdave.natives;
 
 import com.sedmelluq.lava.common.natives.NativeLibraryLoader;
 import moe.kyokobot.libdave.RosterMap;
+import moe.kyokobot.libdave.callbacks.DaveLogSink;
 import moe.kyokobot.libdave.callbacks.EncryptorProtocolVersionChangedCallback;
 import moe.kyokobot.libdave.callbacks.MLSFailureCallback;
 
@@ -19,6 +20,9 @@ public class DaveNativeBindings {
         nativeLoader.load();
         return new DaveNativeBindings();
     }
+
+    // Logging
+    public native void daveSetLogSink(DaveLogSink sink);
 
     // Session
     public native int daveMaxSupportedProtocolVersion();
