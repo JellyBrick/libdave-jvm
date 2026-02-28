@@ -97,7 +97,21 @@ set_target_properties(
   PROPERTIES
   EXCLUDE_FROM_ALL TRUE
 )
-
+set_target_properties(
+  ssl # boringssl
+  PROPERTIES
+  EXCLUDE_FROM_ALL TRUE
+)
+set_target_properties(
+  decrepit # boringssl
+  PROPERTIES
+  EXCLUDE_FROM_ALL TRUE
+)
+set_target_properties(
+  pki # boringssl
+  PROPERTIES
+  EXCLUDE_FROM_ALL TRUE
+)
 # find_package(OpenSSL REQUIRED)
 
 set(nlohmann_json_DIR "${CMAKE_CURRENT_SOURCE_DIR}/json-cpp")
@@ -133,7 +147,7 @@ foreach(_config Release Debug RelWithDebInfo MinSizeRel)
 endforeach()
 
 if(LINUX)
-  target_link_options(dave-jvm PRIVATE "-Wl,--version-script,${DJ_ROOT}/libdave.exports" "-Wl,--build-id")
+  target_link_options(dave-jvm PRIVATE "-Wl,--version-script,${DJ_ROOT}/libdave.exports" "-Wl,--build-id" "-static-libstdc++")
   add_custom_command(TARGET dave-jvm POST_BUILD
     COMMAND ${CMAKE_STRIP} --only-keep-debug -o $<TARGET_FILE:dave-jvm>.debug $<TARGET_FILE:dave-jvm>
     COMMAND echo "Debug symbols saved to $<TARGET_FILE:dave-jvm>.debug"
