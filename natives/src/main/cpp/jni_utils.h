@@ -6,6 +6,7 @@
 #include <functional>
 #include <jni.h>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -80,20 +81,44 @@ static inline void throwIllegalArgument(JNIEnv *env, const char *message) {
 }
 
 static inline ::jobject boxedInteger(JNIEnv *env, int value) {
-  LocalRefHolder<1> refs(env);
+  struct IntegerCache {
+    jclass klass;
+    jmethodID valueOf;
+    bool ok;
+  };
 
-  jclass integerClass = refs.track(env->FindClass("java/lang/Integer"));
-  if (integerClass == nullptr) {
+  static IntegerCache cache{nullptr, nullptr, false};
+  static std::once_flag initOnce;
+
+  std::call_once(initOnce, [env]() {
+    LocalRefHolder<1> refs(env);
+    jclass localKlass = refs.track(env->FindClass("java/lang/Integer"));
+    if (localKlass == nullptr) {
+      return;
+    }
+
+    cache.klass = static_cast<jclass>(env->NewGlobalRef(localKlass));
+    if (cache.klass == nullptr) {
+      return;
+    }
+
+    cache.valueOf =
+        env->GetStaticMethodID(cache.klass, "valueOf", "(I)Ljava/lang/Integer;");
+    if (cache.valueOf == nullptr) {
+      env->DeleteGlobalRef(cache.klass);
+      cache.klass = nullptr;
+      return;
+    }
+
+    cache.ok = true;
+  });
+
+  if (!cache.ok) {
     return nullptr;
   }
 
-  jmethodID valueOfMethod =
-      env->GetStaticMethodID(integerClass, "valueOf", "(I)Ljava/lang/Integer;");
-  if (valueOfMethod == nullptr) {
-    return nullptr;
-  }
-
-  return env->CallStaticObjectMethod(integerClass, valueOfMethod, (jint)value);
+  return env->CallStaticObjectMethod(cache.klass, cache.valueOf,
+                                     static_cast<jint>(value));
 }
 
 struct DirectBufferInfo {
@@ -107,26 +132,53 @@ static inline bool getDirectBufferInfo(JNIEnv *env, jobject buffer, DirectBuffer
     return false;
   }
 
-  // Get java.nio.Buffer class to access position/limit
-  // We can assume buffer is an instance of it.
-  // Using FindClass("java/nio/Buffer") is safer than GetObjectClass because
-  // the object might be a specific subclass (DirectByteBuffer) but methods are
-  // on Buffer.
-  LocalRefHolder<1> holder(env);
-  jclass bufferClass = holder.track(env->FindClass("java/nio/Buffer"));
-  if (bufferClass == nullptr) {
+  struct BufferMethodCache {
+    jclass bufferClass;
+    jmethodID position;
+    jmethodID limit;
+    bool ok;
+  };
+
+  static BufferMethodCache cache{nullptr, nullptr, nullptr, false};
+  static std::once_flag initOnce;
+
+  std::call_once(initOnce, [env]() {
+    // Get java.nio.Buffer class to access position/limit
+    // We can assume buffer is an instance of it.
+    // Using FindClass("java/nio/Buffer") is safer than GetObjectClass because
+    // the object might be a specific subclass (DirectByteBuffer) but methods are
+    // on Buffer.
+    LocalRefHolder<1> holder(env);
+    jclass localBufferClass = holder.track(env->FindClass("java/nio/Buffer"));
+    if (localBufferClass == nullptr) {
+      return;
+    }
+
+    cache.bufferClass = static_cast<jclass>(env->NewGlobalRef(localBufferClass));
+    if (cache.bufferClass == nullptr) {
+      return;
+    }
+
+    cache.position = env->GetMethodID(cache.bufferClass, "position", "()I");
+    cache.limit = env->GetMethodID(cache.bufferClass, "limit", "()I");
+
+    if (cache.position == nullptr || cache.limit == nullptr) {
+      env->DeleteGlobalRef(cache.bufferClass);
+      cache.bufferClass = nullptr;
+      cache.position = nullptr;
+      cache.limit = nullptr;
+      return;
+    }
+
+    cache.ok = true;
+  });
+
+  if (!cache.ok) {
     return false;
   }
 
-  jmethodID positionId = env->GetMethodID(bufferClass, "position", "()I");
-  jmethodID limitId = env->GetMethodID(bufferClass, "limit", "()I");
-
-  if (positionId == nullptr || limitId == nullptr) {
-    return false;
-  }
-
-  jint position = env->CallIntMethod(buffer, positionId);
-  jint limit = env->CallIntMethod(buffer, limitId);
+  jint position = env->CallIntMethod(buffer, cache.position);
+  jint limit = env->CallIntMethod(buffer, cache.limit);
 
   if (position < 0 || limit < position) {
     return false;

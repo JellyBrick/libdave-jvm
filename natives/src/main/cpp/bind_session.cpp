@@ -3,6 +3,7 @@
 #include <dave/dave.h>
 #include <dave/dave_interfaces.h>
 #include <dave/logger.h>
+#include <mutex>
 #include <set>
 #include <variant>
 
@@ -17,20 +18,61 @@ constexpr const char *ROSTER_MAP_CLASS_NAME = "moe/kyokobot/libdave/RosterMap";
 
 jobject toJavaRosterMap(JNIEnv *env,
                         const discord::dave::RosterMap &rosterMap) {
+  struct RosterMapJniCache {
+    jclass rosterMapClass;
+    jmethodID constructor;
+    jclass byteArrayClass;
+    bool ok;
+  };
+
+  static RosterMapJniCache cache{nullptr, nullptr, nullptr, false};
+  static std::once_flag initOnce;
+
+  std::call_once(initOnce, [env]() {
+    LocalRefHolder<2> holder(env);
+
+    // Find the RosterMap class
+    jclass localRosterMapClass = holder.track(env->FindClass(ROSTER_MAP_CLASS_NAME));
+    if (localRosterMapClass == nullptr) {
+      return;
+    }
+    cache.rosterMapClass = static_cast<jclass>(env->NewGlobalRef(localRosterMapClass));
+    if (cache.rosterMapClass == nullptr) {
+      return;
+    }
+
+    // Find the constructor: RosterMap(long[] keys, byte[][] values)
+    cache.constructor = env->GetMethodID(cache.rosterMapClass, "<init>", "([J[[B)V");
+    if (cache.constructor == nullptr) {
+      env->DeleteGlobalRef(cache.rosterMapClass);
+      cache.rosterMapClass = nullptr;
+      return;
+    }
+
+    jclass localByteArrayClass = holder.track(env->FindClass("[B"));
+    if (localByteArrayClass == nullptr) {
+      env->DeleteGlobalRef(cache.rosterMapClass);
+      cache.rosterMapClass = nullptr;
+      cache.constructor = nullptr;
+      return;
+    }
+
+    cache.byteArrayClass = static_cast<jclass>(env->NewGlobalRef(localByteArrayClass));
+    if (cache.byteArrayClass == nullptr) {
+      env->DeleteGlobalRef(cache.rosterMapClass);
+      cache.rosterMapClass = nullptr;
+      cache.constructor = nullptr;
+      return;
+    }
+
+    cache.ok = true;
+  });
+
+  if (!cache.ok) {
+    return nullptr;
+  }
+
   LocalRefHolder<8> holder(env);
-
-  // Find the RosterMap class
-  jclass rosterMapClass = holder.track(env->FindClass(ROSTER_MAP_CLASS_NAME));
-  if (rosterMapClass == nullptr) {
-    return nullptr;
-  }
-
-  // Find the constructor: RosterMap(long[] keys, byte[][] values)
-  jmethodID constructor =
-      env->GetMethodID(rosterMapClass, "<init>", "([J[[B)V");
-  if (constructor == nullptr) {
-    return nullptr;
-  }
 
   // Create the keys array (long[])
   jsize size = static_cast<jsize>(rosterMap.size());
@@ -40,25 +82,20 @@ jobject toJavaRosterMap(JNIEnv *env,
   }
 
   // Create the values array (byte[][])
-  jclass byteArrayClass = holder.track(env->FindClass("[B"));
-  if (byteArrayClass == nullptr) {
-    return nullptr;
-  }
-
   jobjectArray valuesArray =
-      holder.track(env->NewObjectArray(size, byteArrayClass, nullptr));
+      holder.track(env->NewObjectArray(size, cache.byteArrayClass, nullptr));
   if (valuesArray == nullptr) {
     return nullptr;
   }
 
   // Populate keys and values
+  std::vector<jlong> keyBuffer;
+  keyBuffer.reserve(static_cast<size_t>(size));
   jsize index = 0;
   for (const auto &[userId, keyData] : rosterMap) {
     LocalRefHolder<2> loopHolder(env);
 
-    // Set key
-    jlong key = static_cast<jlong>(userId);
-    env->SetLongArrayRegion(keysArray, index, 1, &key);
+    keyBuffer.push_back(static_cast<jlong>(userId));
 
     // Set value (byte array)
     jbyteArray valueArray = loopHolder.track(toByteArray(env, keyData));
@@ -70,8 +107,13 @@ jobject toJavaRosterMap(JNIEnv *env,
     index++;
   }
 
+  if (size > 0) {
+    env->SetLongArrayRegion(keysArray, 0, size, keyBuffer.data());
+  }
+
   // Create the RosterMap object
-  return env->NewObject(rosterMapClass, constructor, keysArray, valuesArray);
+  return env->NewObject(cache.rosterMapClass, cache.constructor, keysArray,
+                        valuesArray);
 }
 
 static void NullLogSink(LoggingSeverity severity, const char *file, int line,
@@ -309,7 +351,14 @@ Java_moe_kyokobot_libdave_natives_DaveNativeBindings_daveSessionGetKeyRatchet(
     JNIEnv *env, jobject clazz, jlong sessionHandle, jstring userId) {
   auto session = reinterpret_cast<mls::ISession *>(sessionHandle);
   auto userIdStr = env->GetStringUTFChars(userId, nullptr);
+  if (userIdStr == nullptr) {
+    throwIllegalArgument(env, "Failed to read userId");
+    return 0;
+  }
+
   auto keyRatchet = session->GetKeyRatchet(userIdStr);
+  env->ReleaseStringUTFChars(userId, userIdStr);
+
   return reinterpret_cast<jlong>(keyRatchet.release());
 }
 
@@ -319,10 +368,17 @@ Java_moe_kyokobot_libdave_natives_DaveNativeBindings_daveSessionGetPairwiseFinge
     jstring userId, jobject callback) {
   auto session = reinterpret_cast<mls::ISession *>(sessionHandle);
   auto userIdStr = env->GetStringUTFChars(userId, nullptr);
+  if (userIdStr == nullptr) {
+    throwIllegalArgument(env, "Failed to read userId");
+    return;
+  }
+  std::string userIdCpp(userIdStr);
+  env->ReleaseStringUTFChars(userId, userIdStr);
+
   auto callbackWrapper = std::make_shared<JNICallbackWrapper>(
       env, callback, "accept", "(Ljava/lang/Object;)V");
   session->GetPairwiseFingerprint(
-      version, userIdStr,
+      version, userIdCpp,
       [callbackWrapper](std::vector<uint8_t> const &fingerprint) {
         if (callbackWrapper && callbackWrapper->isValid()) {
           auto env = callbackWrapper->getEnv();
