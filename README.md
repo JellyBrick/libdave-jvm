@@ -7,6 +7,8 @@ This repository contains a Java implementation of [Discord's E2EE DAVE protocol]
 This project only provides the cryptographic support and the complex parts of the MLS protocol - it does not communicate with any servers directly. 
 It is intended to be consumed by other libraries that interact with Discord's voice servers or API, such as [Koe](https://github.com/KyokoBot/koe) or [JDA](https://github.com/discord-jda/JDA).
 
+Minimum Java version is 8. See below for native dependency compatibility.
+
 ## Modules
 
 - **`api`**: Defines the common Java interfaces for the DAVE protocol (Session, Encryptor, Decryptor, etc.).
@@ -37,32 +39,74 @@ See the `moe.kyokobot.libdave.netty` package documentation for further details.
 ```kotlin
 repositories {
     // mavenCentral() // not published yet
+    maven {
+        url = uri("https://maven.lavalink.dev/snapshots")
+    }
 }
+
+// Use first 9 charactesr of the commit hash for git versions.
 
 dependencies {
     // This will transitively include the `api` module.
-    implementation("moe.kyokobot.libdave:impl-jni:1.0-SNAPSHOT")
+    implementation("moe.kyokobot.libdave:impl-jni:VERSION")
 
     // Linux (glibc 2.35)
-    implementation("moe.kyokobot.libdave:natives-linux-x86-64:1.0-SNAPSHOT")
-    implementation("moe.kyokobot.libdave:natives-linux-x86:1.0-SNAPSHOT")
-    implementation("moe.kyokobot.libdave:natives-linux-aarch64:1.0-SNAPSHOT")
-    implementation("moe.kyokobot.libdave:natives-linux-arm:1.0-SNAPSHOT")
+    implementation("moe.kyokobot.libdave:natives-linux-x86-64:VERSION")
+    implementation("moe.kyokobot.libdave:natives-linux-x86:VERSION")
+    implementation("moe.kyokobot.libdave:natives-linux-aarch64:VERSION")
+    implementation("moe.kyokobot.libdave:natives-linux-arm:VERSION")
 
     // Linux (musl)
-    implementation("moe.kyokobot.libdave:natives-linux-musl-x86-64:1.0-SNAPSHOT")
-    implementation("moe.kyokobot.libdave:natives-linux-musl-x86:1.0-SNAPSHOT")
-    implementation("moe.kyokobot.libdave:natives-linux-musl-aarch64:1.0-SNAPSHOT")
-    implementation("moe.kyokobot.libdave:natives-linux-musl-arm:1.0-SNAPSHOT")
+    implementation("moe.kyokobot.libdave:natives-linux-musl-x86-64:VERSION")
+    implementation("moe.kyokobot.libdave:natives-linux-musl-x86:VERSION")
+    implementation("moe.kyokobot.libdave:natives-linux-musl-aarch64:VERSION")
+    implementation("moe.kyokobot.libdave:natives-linux-musl-arm:VERSION")
 
     // Windows
-    implementation("moe.kyokobot.libdave:natives-win-x86-64:1.0-SNAPSHOT")
-    implementation("moe.kyokobot.libdave:natives-win-x86:1.0-SNAPSHOT")
-    implementation("moe.kyokobot.libdave:natives-win-aarch64:1.0-SNAPSHOT")
+    implementation("moe.kyokobot.libdave:natives-win-x86-64:VERSION")
+    implementation("moe.kyokobot.libdave:natives-win-x86:VERSION")
+    implementation("moe.kyokobot.libdave:natives-win-aarch64:VERSION")
 
     // macOS
-    implementation("moe.kyokobot.libdave:natives-darwin:1.0-SNAPSHOT") // Universal Intel + Apple Silicon
+    implementation("moe.kyokobot.libdave:natives-darwin:VERSION") // Universal Intel + Apple Silicon
 }
+```
+
+### Usage with JDA
+
+**Gradle (Kotlin DSL):**
+
+```kotlin
+repositories {
+    // mavenCentral() // not published yet
+    maven {
+        url = uri("https://maven.lavalink.dev/snapshots")
+    }
+}
+
+// Use first 9 charactesr of the commit hash for git versions.
+
+dependencies {
+    // This will transitively include the `api` module.
+    implementation("moe.kyokobot.libdave:adapter-jda:VERSION")
+    implementation("moe.kyokobot.libdave:impl-jni:VERSION")
+
+    // See above for natives
+    // implementation("moe.kyokobot.libdave:natives-PLATFORM-ARCH:VERSION")
+}
+```
+
+**Implementation**
+
+```java
+DaveFactory daveFactory = new NativeDaveFactory(); // Using native libdave via jni-impl
+
+DaveSessionFactory daveSessionFactory = new LDJDADaveSessionFactory(daveFactory);
+
+jdaBuilder
+    .setAudioModuleConfig(new AudioModuleConfig()
+        .withDaveSessionFactory(daveSessionFactory))
+    .build()
 ```
 
 ## License
