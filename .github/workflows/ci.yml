@@ -44,3 +44,9 @@ jobs:
         with:
           name: impl-jni
           path: impl-jni/build/libs/impl-jni-*.jar
+
+      - name: Upload adapter-jda Artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: adapter-jda
+          path: adapter-jda/build/libs/adapter-jda-*.jar
