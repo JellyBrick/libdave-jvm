@@ -120,7 +120,8 @@ bool ValidateUnencryptedRanges(const Ranges& unencryptedRanges, size_t frameSize
     return true;
 }
 
-size_t Reconstruct(Ranges ranges,
+/// KOE PATCH BEGIN
+size_t Reconstruct(const Ranges& ranges,
                    const std::vector<uint8_t>& rangeBytes,
                    const std::vector<uint8_t>& otherBytes,
                    const ArrayView<uint8_t>& output)
@@ -169,6 +170,7 @@ size_t Reconstruct(Ranges ranges,
 
     return frameIndex;
 }
+/// KOE PATCH END
 
 void InboundFrameProcessor::Clear()
 {
@@ -251,12 +253,26 @@ void InboundFrameProcessor::ParseFrame(ArrayView<const uint8_t> frame)
         return;
     }
 
-    // This is overly aggressive but will keep reallocations to a minimum
-    authenticated_.reserve(frame.size());
-    ciphertext_.reserve(frame.size());
-    plaintext_.reserve(frame.size());
-
+    /// KOE PATCH BEGIN
     originalSize_ = frame.size();
+    auto actualFrameSize = frame.size() - supplementalBytesSize;
+
+    size_t authenticatedSize = 0;
+    for (const auto& range : unencryptedRanges_) {
+        authenticatedSize += range.size;
+    }
+
+    if (authenticatedSize > actualFrameSize) {
+        DISCORD_LOG(LS_WARNING)
+          << "Encrypted frame has invalid unencrypted range lengths for payload size";
+        return;
+    }
+
+    const size_t ciphertextSize = actualFrameSize - authenticatedSize;
+    authenticated_.reserve(authenticatedSize);
+    ciphertext_.reserve(ciphertextSize);
+    plaintext_.reserve(ciphertextSize);
+    /// KOE PATCH END
 
     // Split the frame into authenticated and ciphertext bytes
     size_t frameIndex = 0;
@@ -271,7 +287,6 @@ void InboundFrameProcessor::ParseFrame(ArrayView<const uint8_t> frame)
         AddAuthenticatedBytes(frame.data() + range.offset, range.size);
         frameIndex = range.offset + range.size;
     }
-    auto actualFrameSize = frame.size() - supplementalBytesSize;
     if (frameIndex < actualFrameSize) {
         AddCiphertextBytes(frame.data() + frameIndex, actualFrameSize - frameIndex);
     }
@@ -310,6 +325,31 @@ void InboundFrameProcessor::AddCiphertextBytes(const uint8_t* data, size_t size)
     ciphertext_.resize(ciphertext_.size() + size);
     memcpy(ciphertext_.data() + ciphertext_.size() - size, data, size);
 }
+
+/// KOE PATCH BEGIN
+size_t InboundFrameProcessor::CapacityBytes() const
+{
+    return authenticated_.capacity() + ciphertext_.capacity() + plaintext_.capacity() +
+      unencryptedRanges_.capacity() * sizeof(Range);
+}
+
+void InboundFrameProcessor::ShrinkToFitBudget(size_t budgetBytes)
+{
+    if (CapacityBytes() <= budgetBytes) {
+        return;
+    }
+
+    authenticated_.clear();
+    ciphertext_.clear();
+    plaintext_.clear();
+    unencryptedRanges_.clear();
+
+    authenticated_.shrink_to_fit();
+    ciphertext_.shrink_to_fit();
+    plaintext_.shrink_to_fit();
+    unencryptedRanges_.shrink_to_fit();
+}
+/// KOE PATCH END
 
 void OutboundFrameProcessor::Reset()
 {
@@ -397,6 +437,31 @@ void OutboundFrameProcessor::AddEncryptedBytes(const uint8_t* bytes, size_t size
     memcpy(encryptedBytes_.data() + encryptedBytes_.size() - size, bytes, size);
     frameIndex_ += size;
 }
+
+/// KOE PATCH BEGIN
+size_t OutboundFrameProcessor::CapacityBytes() const
+{
+    return unencryptedBytes_.capacity() + encryptedBytes_.capacity() + ciphertextBytes_.capacity() +
+      unencryptedRanges_.capacity() * sizeof(Range);
+}
+
+void OutboundFrameProcessor::ShrinkToFitBudget(size_t budgetBytes)
+{
+    if (CapacityBytes() <= budgetBytes) {
+        return;
+    }
+
+    unencryptedBytes_.clear();
+    encryptedBytes_.clear();
+    ciphertextBytes_.clear();
+    unencryptedRanges_.clear();
+
+    unencryptedBytes_.shrink_to_fit();
+    encryptedBytes_.shrink_to_fit();
+    ciphertextBytes_.shrink_to_fit();
+    unencryptedRanges_.shrink_to_fit();
+}
+/// KOE PATCH END
 
 } // namespace dave
 } // namespace discord

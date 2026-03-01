@@ -4,6 +4,9 @@
 #include <memory>
 #include <optional>
 #include <unordered_map>
+/// KOE PATCH BEGIN
+#include <unordered_set>
+/// KOE PATCH END
 
 #include "common.h"
 #include "cryptor.h"
@@ -52,6 +55,11 @@ private:
 
     std::optional<BigNonce> newestProcessedNonce_;
     std::deque<BigNonce> missingNonces_;
+    /// KOE PATCH BEGIN
+    std::unordered_set<BigNonce> missingNoncesSet_;
+    TimePoint nextCleanup_{TimePoint::min()};
+    TimePoint earliestCryptorExpiry_{TimePoint::max()};
+    /// KOE PATCH END
 };
 
 } // namespace dave

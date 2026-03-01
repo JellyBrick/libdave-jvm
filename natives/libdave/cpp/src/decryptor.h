@@ -1,6 +1,9 @@
 #pragma once
 
 #include <array>
+/// KOE PATCH BEGIN
+#include <atomic>
+/// KOE PATCH END
 #include <deque>
 #include <functional>
 #include <memory>
@@ -47,6 +50,11 @@ public:
     }
 
 private:
+    /// KOE PATCH BEGIN
+    static constexpr size_t kMaxFrameProcessorPoolSize = 1;
+    static constexpr size_t kFrameProcessorMinBudgetBytes = 2048;
+    static constexpr size_t kFrameProcessorMaxBudgetBytes = 65536;
+
     using TimePoint = IClock::TimePoint;
 
     Decryptor::ResultCode DecryptImpl(CryptorManager& cryptor,
@@ -58,12 +66,18 @@ private:
 
     std::unique_ptr<InboundFrameProcessor> GetOrCreateFrameProcessor();
     void ReturnFrameProcessor(std::unique_ptr<InboundFrameProcessor> frameProcessor);
+    void UpdateFrameProcessorBudget(size_t frameSize);
+    size_t GetFrameProcessorCapacityBudget() const;
+    /// KOE PATCH END
 
     Clock clock_;
     std::deque<CryptorManager> cryptorManagers_;
 
     std::mutex frameProcessorsMutex_;
     std::vector<std::unique_ptr<InboundFrameProcessor>> frameProcessors_;
+    /// KOE PATCH BEGIN
+    std::atomic_size_t frameProcessorSizeEma_{0};
+    /// KOE PATCH END
 
     TimePoint allowPassThroughUntil_{TimePoint::min()};
 

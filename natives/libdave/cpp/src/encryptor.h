@@ -6,6 +6,9 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+/// KOE PATCH BEGIN
+#include <unordered_map>
+/// KOE PATCH END
 #include <vector>
 
 #include <dave/dave_interfaces.h>
@@ -52,8 +55,16 @@ public:
     virtual ProtocolVersion GetProtocolVersion() const override { return currentProtocolVersion_; }
 
 private:
+    /// KOE PATCH BEGIN
+    static constexpr size_t kMaxFrameProcessorPoolSize = 1;
+    static constexpr size_t kFrameProcessorMinBudgetBytes = 2048;
+    static constexpr size_t kFrameProcessorMaxBudgetBytes = 65536;
+
     std::unique_ptr<OutboundFrameProcessor> GetOrCreateFrameProcessor();
     void ReturnFrameProcessor(std::unique_ptr<OutboundFrameProcessor> frameProcessor);
+    void UpdateFrameProcessorBudget(size_t frameSize);
+    size_t GetFrameProcessorCapacityBudget() const;
+    /// KOE PATCH END
 
     using CryptorAndNonce = std::pair<std::shared_ptr<ICryptor>, TruncatedSyncNonce>;
     CryptorAndNonce GetNextCryptorAndNonce();
@@ -71,8 +82,10 @@ private:
     std::mutex frameProcessorsMutex_;
     std::vector<std::unique_ptr<OutboundFrameProcessor>> frameProcessors_;
 
-    using SsrcCodecPair = std::pair<uint32_t, Codec>;
-    std::vector<SsrcCodecPair> ssrcCodecPairs_;
+    /// KOE PATCH BEGIN
+    std::unordered_map<uint32_t, Codec> ssrcCodecs_;
+    std::atomic_size_t frameProcessorSizeEma_{0};
+    /// KOE PATCH END
 
     using TimePoint = std::chrono::time_point<std::chrono::steady_clock>;
     TimePoint lastStatsTime_{TimePoint::min()};

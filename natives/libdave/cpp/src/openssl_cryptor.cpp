@@ -1,5 +1,8 @@
 #include "openssl_cryptor.h"
 
+/// KOE PATCH BEGIN
+#include <array>
+/// KOE PATCH END
 #include <openssl/err.h>
 
 #include <bytes/bytes.h>
@@ -176,7 +179,10 @@ bool OpenSSLCryptor::Decrypt(ArrayView<uint8_t> plaintextBufferOut,
     }
 
     // make a copy of the tag since the interface expects a const tag for decryption
-    std::vector<uint8_t> tagBufferCopy(tagBuffer.begin(), tagBuffer.end());
+    /// KOE PATCH BEGIN
+    std::array<uint8_t, kAesGcm128TruncatedTagBytes> tagBufferCopy{};
+    memcpy(tagBufferCopy.data(), tagBuffer.data(), kAesGcm128TruncatedTagBytes);
+    /// KOE PATCH END
 
     auto tagResult = EVP_CIPHER_CTX_ctrl(
       cipherCtx_, EVP_CTRL_GCM_SET_TAG, kAesGcm128TruncatedTagBytes, tagBufferCopy.data());

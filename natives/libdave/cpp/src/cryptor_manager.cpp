@@ -1,5 +1,8 @@
 #include "cryptor_manager.h"
 
+/// KOE PATCH BEGIN
+#include <algorithm>
+/// KOE PATCH END
 #include <limits>
 
 #include <dave/logger.h>
@@ -10,6 +13,10 @@ using namespace std::chrono_literals;
 
 namespace discord {
 namespace dave {
+
+/// KOE PATCH BEGIN
+constexpr auto kCleanupInterval = 250ms;
+/// KOE PATCH END
 
 KeyGeneration ComputeWrappedGeneration(KeyGeneration oldest, KeyGeneration generation)
 {
@@ -34,6 +41,9 @@ CryptorManager::CryptorManager(const IClock& clock, std::unique_ptr<IKeyRatchet>
   , ratchetCreation_(clock.Now())
   , ratchetExpiry_(TimePoint::max())
 {
+    /// KOE PATCH BEGIN
+    missingNoncesSet_.reserve(kMaxMissingNonces);
+    /// KOE PATCH END
 }
 
 bool CryptorManager::CanProcessNonce(KeyGeneration generation, TruncatedSyncNonce nonce) const
@@ -43,8 +53,10 @@ bool CryptorManager::CanProcessNonce(KeyGeneration generation, TruncatedSyncNonc
     }
 
     auto bigNonce = ComputeWrappedBigNonce(generation, nonce);
+    /// KOE PATCH BEGIN
     return bigNonce > *newestProcessedNonce_ ||
-      std::find(missingNonces_.rbegin(), missingNonces_.rend(), bigNonce) != missingNonces_.rend();
+      missingNoncesSet_.find(bigNonce) != missingNoncesSet_.end();
+    /// KOE PATCH END
 }
 
 ICryptor* CryptorManager::GetCryptor(KeyGeneration generation)
@@ -98,23 +110,31 @@ void CryptorManager::ReportCryptorSuccess(KeyGeneration generation, TruncatedSyn
         auto missingNonces =
           std::min(bigNonce - *newestProcessedNonce_ - 1, static_cast<uint64_t>(kMaxMissingNonces));
 
+        /// KOE PATCH BEGIN
         while (!missingNonces_.empty() &&
                missingNonces_.size() + missingNonces > kMaxMissingNonces) {
+            missingNoncesSet_.erase(missingNonces_.front());
             missingNonces_.pop_front();
         }
 
         for (auto i = bigNonce - missingNonces; i < bigNonce; ++i) {
             missingNonces_.push_back(i);
+            missingNoncesSet_.insert(i);
         }
+        /// KOE PATCH END
 
         // Update the newest processed nonce
         newestProcessedNonce_ = bigNonce;
     }
     else {
-        auto it = std::find(missingNonces_.begin(), missingNonces_.end(), bigNonce);
-        if (it != missingNonces_.end()) {
-            missingNonces_.erase(it);
+        /// KOE PATCH BEGIN
+        if (missingNoncesSet_.erase(bigNonce) > 0) {
+            auto it = std::find(missingNonces_.begin(), missingNonces_.end(), bigNonce);
+            if (it != missingNonces_.end()) {
+                missingNonces_.erase(it);
+            }
         }
+        /// KOE PATCH END
     }
 
     if (generation <= newestGeneration_ || cryptors_.find(generation) == cryptors_.end()) {
@@ -129,6 +149,9 @@ void CryptorManager::ReportCryptorSuccess(KeyGeneration generation, TruncatedSyn
         if (gen < newestGeneration_) {
             DISCORD_LOG(LS_INFO) << "Updating expiry for cryptor, generation: " << gen;
             cryptor.expiry = std::min(cryptor.expiry, expiryTime);
+            /// KOE PATCH BEGIN
+            earliestCryptorExpiry_ = std::min(earliestCryptorExpiry_, cryptor.expiry);
+            /// KOE PATCH END
         }
     }
 }
@@ -155,21 +178,40 @@ CryptorManager::ExpiringCryptor CryptorManager::MakeExpiringCryptor(KeyGeneratio
         DISCORD_LOG(LS_INFO) << "Creating cryptor for new generation: " << generation;
     }
 
+    /// KOE PATCH BEGIN
+    earliestCryptorExpiry_ = std::min(earliestCryptorExpiry_, expiryTime);
+    /// KOE PATCH END
+
     return {CreateCryptor(encryptionKey), expiryTime};
 }
 
 void CryptorManager::CleanupExpiredCryptors()
 {
+    /// KOE PATCH BEGIN
+    const auto now = clock_.Now();
+    if (now < nextCleanup_ && now < earliestCryptorExpiry_) {
+        return;
+    }
+
+    nextCleanup_ = now + kCleanupInterval;
+
     for (auto it = cryptors_.begin(); it != cryptors_.end();) {
         auto& [generation, cryptor] = *it;
 
-        bool expired = cryptor.expiry < clock_.Now();
+        bool expired = cryptor.expiry < now;
         if (expired) {
             DISCORD_LOG(LS_INFO) << "Removing expired cryptor, generation: " << generation;
         }
 
         it = expired ? cryptors_.erase(it) : ++it;
     }
+
+    earliestCryptorExpiry_ = TimePoint::max();
+    for (const auto& [generation, cryptor] : cryptors_) {
+        (void)generation;
+        earliestCryptorExpiry_ = std::min(earliestCryptorExpiry_, cryptor.expiry);
+    }
+    /// KOE PATCH END
 
     while (oldestGeneration_ < newestGeneration_ &&
            cryptors_.find(oldestGeneration_) == cryptors_.end()) {

@@ -1,5 +1,8 @@
 #include "decryptor.h"
 
+/// KOE PATCH BEGIN
+#include <algorithm>
+/// KOE PATCH END
 #include <cstring>
 
 #include <bytes/bytes.h>
@@ -59,6 +62,9 @@ Decryptor::ResultCode Decryptor::Decrypt(MediaType mediaType,
         return ResultCode::DecryptionFailure;
     }
     auto& stats = stats_[mediaType];
+    /// KOE PATCH BEGIN
+    UpdateFrameProcessorBudget(encryptedFrame.size());
+    /// KOE PATCH END
 
     auto start = clock_.Now();
 
@@ -235,8 +241,42 @@ std::unique_ptr<InboundFrameProcessor> Decryptor::GetOrCreateFrameProcessor()
 
 void Decryptor::ReturnFrameProcessor(std::unique_ptr<InboundFrameProcessor> frameProcessor)
 {
+    /// KOE PATCH BEGIN
+    if (!frameProcessor) {
+        return;
+    }
+
+    frameProcessor->Clear();
+    frameProcessor->ShrinkToFitBudget(GetFrameProcessorCapacityBudget());
+    if (frameProcessor->CapacityBytes() > GetFrameProcessorCapacityBudget()) {
+        return;
+    }
+
     std::lock_guard<std::mutex> lock(frameProcessorsMutex_);
+    if (frameProcessors_.size() >= kMaxFrameProcessorPoolSize) {
+        return;
+    }
+
     frameProcessors_.push_back(std::move(frameProcessor));
+    /// KOE PATCH END
+}
+
+void Decryptor::UpdateFrameProcessorBudget(size_t frameSize)
+{
+    /// KOE PATCH BEGIN
+    auto current = frameProcessorSizeEma_.load(std::memory_order_relaxed);
+    const auto updated = current == 0 ? frameSize : ((current * 7) + frameSize) / 8;
+    frameProcessorSizeEma_.store(updated, std::memory_order_relaxed);
+    /// KOE PATCH END
+}
+
+size_t Decryptor::GetFrameProcessorCapacityBudget() const
+{
+    /// KOE PATCH BEGIN
+    const size_t dynamicBudget = frameProcessorSizeEma_.load(std::memory_order_relaxed) * 4 + 1024;
+    return std::max(kFrameProcessorMinBudgetBytes,
+                    std::min(dynamicBudget, kFrameProcessorMaxBudgetBytes));
+    /// KOE PATCH END
 }
 
 } // namespace dave

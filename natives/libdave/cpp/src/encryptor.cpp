@@ -62,6 +62,10 @@ Encryptor::ResultCode Encryptor::Encrypt(MediaType mediaType,
         return ResultCode::Success;
     }
 
+    /// KOE PATCH BEGIN
+    UpdateFrameProcessorBudget(frame.size());
+    /// KOE PATCH END
+
     {
         std::lock_guard<std::mutex> lock(keyGenMutex_);
         if (!keyRatchet_) {
@@ -230,32 +234,21 @@ size_t Encryptor::GetMaxCiphertextByteSize([[maybe_unused]] MediaType mediaType,
 
 void Encryptor::AssignSsrcToCodec(uint32_t ssrc, Codec codecType)
 {
-    auto existingCodecIt = std::find_if(
-      ssrcCodecPairs_.begin(), ssrcCodecPairs_.end(), [ssrc](const SsrcCodecPair& pair) {
-          return pair.first == ssrc;
-      });
-
-    if (existingCodecIt == ssrcCodecPairs_.end()) {
-        ssrcCodecPairs_.emplace_back(ssrc, codecType);
-    }
-    else {
-        existingCodecIt->second = codecType;
-    }
+    /// KOE PATCH BEGIN
+    ssrcCodecs_[ssrc] = codecType;
+    /// KOE PATCH END
 }
 
 Codec Encryptor::CodecForSsrc(uint32_t ssrc)
 {
-    auto existingCodecIt = std::find_if(
-      ssrcCodecPairs_.begin(), ssrcCodecPairs_.end(), [ssrc](const SsrcCodecPair& pair) {
-          return pair.first == ssrc;
-      });
-
-    if (existingCodecIt != ssrcCodecPairs_.end()) {
+    /// KOE PATCH BEGIN
+    auto existingCodecIt = ssrcCodecs_.find(ssrc);
+    if (existingCodecIt != ssrcCodecs_.end()) {
         return existingCodecIt->second;
     }
-    else {
-        return Codec::Unknown;
-    }
+
+    return Codec::Unknown;
+    /// KOE PATCH END
 }
 
 std::unique_ptr<OutboundFrameProcessor> Encryptor::GetOrCreateFrameProcessor()
@@ -271,8 +264,43 @@ std::unique_ptr<OutboundFrameProcessor> Encryptor::GetOrCreateFrameProcessor()
 
 void Encryptor::ReturnFrameProcessor(std::unique_ptr<OutboundFrameProcessor> frameProcessor)
 {
+    /// KOE PATCH BEGIN
+    if (!frameProcessor) {
+        return;
+    }
+
+    frameProcessor->Reset();
+    frameProcessor->ShrinkToFitBudget(GetFrameProcessorCapacityBudget());
+
+    if (frameProcessor->CapacityBytes() > GetFrameProcessorCapacityBudget()) {
+        return;
+    }
+
     std::lock_guard<std::mutex> lock(frameProcessorsMutex_);
+    if (frameProcessors_.size() >= kMaxFrameProcessorPoolSize) {
+        return;
+    }
+
     frameProcessors_.push_back(std::move(frameProcessor));
+    /// KOE PATCH END
+}
+
+void Encryptor::UpdateFrameProcessorBudget(size_t frameSize)
+{
+    /// KOE PATCH BEGIN
+    auto current = frameProcessorSizeEma_.load(std::memory_order_relaxed);
+    const auto updated = current == 0 ? frameSize : ((current * 7) + frameSize) / 8;
+    frameProcessorSizeEma_.store(updated, std::memory_order_relaxed);
+    /// KOE PATCH END
+}
+
+size_t Encryptor::GetFrameProcessorCapacityBudget() const
+{
+    /// KOE PATCH BEGIN
+    const size_t dynamicBudget = frameProcessorSizeEma_.load(std::memory_order_relaxed) * 4 + 1024;
+    return std::max(kFrameProcessorMinBudgetBytes,
+                    std::min(dynamicBudget, kFrameProcessorMaxBudgetBytes));
+    /// KOE PATCH END
 }
 
 Encryptor::CryptorAndNonce Encryptor::GetNextCryptorAndNonce()

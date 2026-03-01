@@ -48,6 +48,10 @@ public:
         return MakeArrayView(ciphertext_.data(), ciphertext_.size());
     }
     ArrayView<uint8_t> GetPlaintext() { return MakeArrayView(plaintext_); }
+    /// KOE PATCH BEGIN
+    size_t CapacityBytes() const;
+    void ShrinkToFitBudget(size_t budgetBytes);
+    /// KOE PATCH END
 
 private:
     void AddAuthenticatedBytes(const uint8_t* data, size_t size);
@@ -73,6 +77,10 @@ public:
     const std::vector<uint8_t>& GetEncryptedBytes() const { return encryptedBytes_; }
     std::vector<uint8_t>& GetCiphertextBytes() { return ciphertextBytes_; }
     const Ranges& GetUnencryptedRanges() const { return unencryptedRanges_; }
+    /// KOE PATCH BEGIN
+    size_t CapacityBytes() const;
+    void ShrinkToFitBudget(size_t budgetBytes);
+    /// KOE PATCH END
 
     void Reset();
     void AddUnencryptedBytes(const uint8_t* bytes, size_t size);
