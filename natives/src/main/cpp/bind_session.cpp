@@ -116,24 +116,7 @@ jobject toJavaRosterMap(JNIEnv *env,
                         valuesArray);
 }
 
-static void NullLogSink(LoggingSeverity severity, const char *file, int line,
-                        const std::string &message) {
-  (void)severity;
-  (void)file;
-  (void)line;
-  (void)message;
-}
-
 } // namespace
-
-namespace kyoko::libdave {
-
-void shutUpDave() {
-  SetLogSink(NullLogSink); // it doesn't matter that it's a global, we always
-                           // set it to the same thing
-}
-
-} // namespace kyoko::libdave
 
 JNIEXPORT jint JNICALL
 Java_moe_kyokobot_libdave_natives_DaveNativeBindings_daveMaxSupportedProtocolVersion(
@@ -145,8 +128,6 @@ JNIEXPORT jlong JNICALL
 Java_moe_kyokobot_libdave_natives_DaveNativeBindings_daveSessionCreate(
     JNIEnv *env, jobject clazz, jstring context, jstring authSessionId,
     jobject callback) {
-  shutUpDave();
-
   const char *contextStr = env->GetStringUTFChars(context, nullptr);
   const char *authStr = env->GetStringUTFChars(authSessionId, nullptr);
 

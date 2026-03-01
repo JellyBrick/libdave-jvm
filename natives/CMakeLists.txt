@@ -160,6 +160,7 @@ add_library(dave-jvm SHARED
   ${DJ_ROOT}/bind_decryptor.cpp
   ${DJ_ROOT}/bind_encryptor.cpp
   ${DJ_ROOT}/bind_key_ratchet.cpp
+  ${DJ_ROOT}/bind_logging.cpp
   ${DJ_ROOT}/bind_session.cpp
 )
 

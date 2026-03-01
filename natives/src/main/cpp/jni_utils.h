@@ -215,6 +215,15 @@ private:
     env->CallVoidMethod(callback, methodId);
   }
 
+  void callMethod(JNIEnv *env, jint arg1, const std::string &arg2, jint arg3,
+                  const std::string &arg4) {
+    LocalRefHolder<2> holder(env);
+    jstring jarg2 = holder.track(toJString(env, arg2));
+    jstring jarg4 = holder.track(toJString(env, arg4));
+
+    env->CallVoidMethod(callback, methodId, arg1, jarg2, arg3, jarg4);
+  }
+
 public:
   JNICallbackWrapper(JNIEnv *env, jobject callback, const char *methodName,
                      const char *signature)
@@ -302,8 +311,6 @@ public:
     }
   }
 };
-
-void shutUpDave();
 
 } // namespace kyoko::libdave
 
