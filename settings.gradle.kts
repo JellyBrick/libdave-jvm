@@ -3,6 +3,8 @@ rootProject.name = "libdave-jvm"
 include("api")
 include("impl-jni")
 
+include("adapter-jda")
+
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 val targetFromCmd = gradle.startParameter.projectProperties["target"]
@@ -30,8 +32,9 @@ dependencyResolutionManagement {
             library("junit-jupiter", "org.junit.jupiter", "junit-jupiter").version("")
             library("junit-platform", "org.junit.platform", "junit-platform-launcher").version("")
 
-
             library("logback", "ch.qos.logback", "logback-classic").version("1.3.16")
+
+            library("jda", "net.dv8tion", "JDA").version("6.3.1")
         }
     }
 }
