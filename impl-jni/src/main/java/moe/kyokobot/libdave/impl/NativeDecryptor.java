@@ -39,6 +39,12 @@ public class NativeDecryptor extends DaveNativeHandle implements Decryptor {
     @Override
     public int decrypt(MediaType mediaType, ByteBuffer encryptedFrame, ByteBuffer frame) {
         assertOpen();
+        if (!frame.isDirect()) {
+            throw new IllegalArgumentException("frame must be backed by a direct buffer");
+        }
+        if (!encryptedFrame.isDirect()) {
+            throw new IllegalArgumentException("encryptedFrame must be backed by a direct buffer");
+        }
         return DaveNativeBindings.inst().daveDecryptorDecrypt(handle, mediaType.getValue(), encryptedFrame, frame);
     }
 
