@@ -12,21 +12,13 @@ import java.util.function.Consumer;
 public class DaveNativeBindings {
     private static final NativeLibraryLoader nativeLoader =
             NativeLibraryLoader.create(DaveNativeBindings.class, "dave-jvm");
-    private static volatile DaveNativeBindings instance;
-    private static final Object lock = new Object();
 
     private DaveNativeBindings() {
     }
 
     public static DaveNativeBindings inst() {
-        synchronized (lock) {
-            if (instance == null) {
-                nativeLoader.load();
-                instance = new DaveNativeBindings();
-            }
-
-            return instance;
-        }
+        nativeLoader.load();
+        return new DaveNativeBindings();
     }
 
     // Logging
