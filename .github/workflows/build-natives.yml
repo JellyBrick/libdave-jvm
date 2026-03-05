@@ -165,25 +165,31 @@ jobs:
 
       - name: Build natives JAR (Unix)
         if: matrix.os != 'windows-2022'
+        env:
+          ORG_GRADLE_PROJECT_MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
+          ORG_GRADLE_PROJECT_MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
+          ORG_GRADLE_PROJECT_MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_IN_MEMORY_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_IN_MEMORY_KEY_PASSWORD }}
         run: |
           ./gradlew :natives:build :natives:publish \
           --no-daemon \
-          -Ptarget=${{ matrix.target }} \
-          -PMAVEN_USERNAME=${{ secrets.MAVEN_USERNAME }} \
-          -PMAVEN_PASSWORD=${{ secrets.MAVEN_PASSWORD }} \
-          -PMAVEN_CENTRAL_USERNAME=${{ secrets.MAVEN_CENTRAL_USERNAME }} \
-          -PMAVEN_CENTRAL_PASSWORD=${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          -Ptarget=${{ matrix.target }}
 
       - name: Build natives JAR (Windows)
         if: matrix.os == 'windows-2022'
+        env:
+          ORG_GRADLE_PROJECT_MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
+          ORG_GRADLE_PROJECT_MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
+          ORG_GRADLE_PROJECT_MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_IN_MEMORY_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_IN_MEMORY_KEY_PASSWORD }}
         run: |
           .\gradlew.bat :natives:build :natives:publish `
           --no-daemon `
-          -Ptarget=${{ matrix.target }} `
-          -PMAVEN_USERNAME=${{ secrets.MAVEN_USERNAME }} `
-          -PMAVEN_PASSWORD=${{ secrets.MAVEN_PASSWORD }} `
-          -PMAVEN_CENTRAL_USERNAME=${{ secrets.MAVEN_CENTRAL_USERNAME }} `
-          -PMAVEN_CENTRAL_PASSWORD=${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          -Ptarget=${{ matrix.target }}
 
       - name: Upload JAR artifact
         uses: actions/upload-artifact@v6
