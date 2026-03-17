@@ -25,3 +25,7 @@ else()
     set(CMAKE_FIND_ROOT_PATH "/usr/arm-linux-gnueabihf")
   endif()
 endif()
+
+# Force 64K page alignment for compatibility with 16K/64K page-size kernels (e.g. Android, RHEL on ARM).
+set(CMAKE_EXE_LINKER_FLAGS_INIT "-Wl,-z,max-page-size=65536")
+set(CMAKE_SHARED_LINKER_FLAGS_INIT "-Wl,-z,max-page-size=65536")
